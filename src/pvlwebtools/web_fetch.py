@@ -1,13 +1,15 @@
 """
 Web page fetching and content extraction.
 
-Uses trafilatura for high-quality extraction with regex fallback.
+Uses markitdown for LLM-friendly markdown output, with trafilatura
+and regex fallbacks for plain text extraction.
 """
 
 from __future__ import annotations
 
 import asyncio
 import html
+import io
 import logging
 import re
 import time
@@ -28,7 +30,7 @@ USER_AGENT = "pvl-webtools/1.0 (https://github.com/pvliesdonk/pvl-webtools)"
 _last_request_time: float = 0.0
 _rate_limit_lock = asyncio.Lock()
 
-ExtractMode = Literal["article", "raw", "metadata"]
+ExtractMode = Literal["markdown", "article", "raw", "metadata"]
 
 
 @dataclass
@@ -77,6 +79,38 @@ async def _fetch_url(url: str, timeout: float = REQUEST_TIMEOUT) -> str:
             raise WebFetchError(f"Content too large: {content_length} bytes")
 
         return response.text
+
+
+MAX_MARKDOWN_LENGTH = 100_000  # 100k chars max for markdown output
+
+
+def _extract_markdown(html_content: str) -> str | None:
+    """
+    Convert HTML to LLM-friendly markdown.
+
+    Uses markitdown if available. Returns None if not available or fails.
+    """
+    try:
+        from markitdown import MarkItDown, StreamInfo
+
+        md = MarkItDown()
+        stream_info = StreamInfo(mimetype="text/html", extension=".html")
+        data = io.BytesIO(html_content.encode("utf-8", errors="replace"))
+        result = md.convert_stream(data, stream_info=stream_info)
+
+        if result.markdown is not None:
+            text = result.markdown
+            # Truncate if too long
+            if len(text) > MAX_MARKDOWN_LENGTH:
+                text = text[:MAX_MARKDOWN_LENGTH] + "\n\n[Content truncated...]"
+            return text
+
+    except ImportError:
+        logger.debug("markitdown not available")
+    except Exception as e:
+        logger.debug(f"markitdown extraction failed: {e}")
+
+    return None
 
 
 def _extract_article(html_content: str) -> str:
@@ -166,7 +200,7 @@ def _extract_metadata(html_content: str) -> str:
 
 async def web_fetch(
     url: str,
-    extract_mode: ExtractMode = "article",
+    extract_mode: ExtractMode = "markdown",
     rate_limit: bool = True,
     timeout: float = REQUEST_TIMEOUT,
 ) -> FetchResult:
@@ -176,7 +210,9 @@ async def web_fetch(
     Args:
         url: URL to fetch (must be http:// or https://).
         extract_mode: Extraction mode:
-            - 'article': Extract main article text (default).
+            - 'markdown': Convert to LLM-friendly markdown (default).
+              Falls back to 'article' if markitdown not installed.
+            - 'article': Extract main article text via trafilatura.
             - 'raw': Return raw HTML (truncated to 50k chars).
             - 'metadata': Extract title, description, Open Graph tags.
         rate_limit: Whether to enforce rate limiting (default True).
@@ -199,19 +235,28 @@ async def web_fetch(
 
     try:
         html_content = await _fetch_url(url, timeout)
+        actual_mode = extract_mode
 
         if extract_mode == "raw":
             content = html_content[:50000]
         elif extract_mode == "metadata":
             content = _extract_metadata(html_content)
-        else:
+        elif extract_mode == "markdown":
+            result = _extract_markdown(html_content)
+            if result is not None:
+                content = result
+            else:
+                # Fallback to article extraction
+                content = _extract_article(html_content)
+                actual_mode = "article"
+        else:  # article
             content = _extract_article(html_content)
 
         return FetchResult(
             url=url,
             content=content,
             content_length=len(content),
-            extract_mode=extract_mode,
+            extract_mode=actual_mode,
         )
 
     except httpx.HTTPError as e:

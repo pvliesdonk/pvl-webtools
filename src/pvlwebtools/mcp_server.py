@@ -100,17 +100,19 @@ def search(
 @mcp.tool
 def fetch(
     url: str,
-    extract_mode: Literal["article", "raw", "metadata"] = "article",
+    extract_mode: Literal["markdown", "article", "raw", "metadata"] = "markdown",
 ) -> dict:
     """Fetch and extract content from a URL.
 
     Use this tool to retrieve the content of a web page. Supports
-    multiple extraction modes for different use cases.
+    multiple extraction modes optimized for different use cases.
 
     Args:
         url: URL to fetch (must start with http:// or https://).
         extract_mode: How to extract content:
-            - 'article': Extract main article text (default, uses trafilatura).
+            - 'markdown': Convert to LLM-friendly markdown (default).
+              Preserves headings, lists, links, code blocks.
+            - 'article': Extract main article text (uses trafilatura).
             - 'raw': Return raw HTML (truncated to 50k chars).
             - 'metadata': Extract title, description, Open Graph tags only.
 
