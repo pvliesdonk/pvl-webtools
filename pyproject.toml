@@ -47,6 +47,11 @@ dev = [
     "markitdown>=0.1",
     "pre-commit>=3.0",
 ]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+]
 
 [project.scripts]
 pvl-webtools-mcp = "pvlwebtools.mcp_server:mcp.run"

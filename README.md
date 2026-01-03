@@ -2,6 +2,8 @@
 
 Web search (via SearXNG) and fetch tools with MCP server.
 
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://pvliesdonk.github.io/pvl-webtools/)
+
 ## Installation
 
 ```bash
