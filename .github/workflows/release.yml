@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.2.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate version format
+        run: |
+          if ! echo "${{ inputs.version }}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'; then
+            echo "Error: Version must be in format X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          fi
+
+      - name: Check version doesn't exist
+        run: |
+          if git tag -l "v${{ inputs.version }}" | grep -q .; then
+            echo "Error: Tag v${{ inputs.version }} already exists"
+            exit 1
+          fi
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          PREV_TAG="${{ steps.prev_tag.outputs.tag }}"
+
+          if [ -z "$PREV_TAG" ]; then
+            # First release - get all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
+          else
+            # Get commits since last tag
+            COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Categorize commits by conventional commit type
+          FEATURES=$(echo "$COMMITS" | grep -iE "^- feat" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "^- fix" || true)
+          DOCS=$(echo "$COMMITS" | grep -iE "^- docs" || true)
+          CHORE=$(echo "$COMMITS" | grep -iE "^- (chore|ci|build|refactor|style|test)" || true)
+          OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|fix|docs|chore|ci|build|refactor|style|test)" || true)
+
+          # Build changelog
+          CHANGELOG=""
+
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="${CHANGELOG}## ✨ Features\n${FEATURES}\n\n"
+          fi
+
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="${CHANGELOG}## 🐛 Bug Fixes\n${FIXES}\n\n"
+          fi
+
+          if [ -n "$DOCS" ]; then
+            CHANGELOG="${CHANGELOG}## 📚 Documentation\n${DOCS}\n\n"
+          fi
+
+          if [ -n "$CHORE" ]; then
+            CHANGELOG="${CHANGELOG}## 🔧 Maintenance\n${CHORE}\n\n"
+          fi
+
+          if [ -n "$OTHER" ]; then
+            CHANGELOG="${CHANGELOG}## 📦 Other Changes\n${OTHER}\n\n"
+          fi
+
+          # Add installation instructions
+          CHANGELOG="${CHANGELOG}## 📥 Installation\n\n"
+          CHANGELOG="${CHANGELOG}\`\`\`bash\n"
+          CHANGELOG="${CHANGELOG}# PyPI\n"
+          CHANGELOG="${CHANGELOG}pip install pvl-webtools==${{ inputs.version }}\n\n"
+          CHANGELOG="${CHANGELOG}# Docker\n"
+          CHANGELOG="${CHANGELOG}docker pull ghcr.io/pvliesdonk/pvl-webtools:v${{ inputs.version }}\n"
+          CHANGELOG="${CHANGELOG}\`\`\`"
+
+          # Write to file for multiline support
+          echo -e "$CHANGELOG" > changelog.md
+          cat changelog.md
+
+      - name: Update version in pyproject.toml
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' pyproject.toml
+          cat pyproject.toml | grep "^version"
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit version bump
+        run: |
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${{ inputs.version }}"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          body_path: changelog.md
+          prerelease: ${{ inputs.prerelease }}
+          generate_release_notes: false

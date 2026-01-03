@@ -52,6 +52,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Docker Deployment: docker.md
   - API Reference:
       - web_fetch: api/web_fetch.md
       - web_search: api/web_search.md
