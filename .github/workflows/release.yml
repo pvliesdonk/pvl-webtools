@@ -53,9 +53,7 @@ jobs:
 
       - name: Build package
         if: steps.release.outputs.released == 'true'
-        run: |
-          pip install build
-          python -m build
+        run: uv build
 
       - name: Upload to GitHub Release Assets
         uses: python-semantic-release/publish-action@v10.5.3
