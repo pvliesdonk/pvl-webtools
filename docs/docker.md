@@ -125,7 +125,7 @@ cd pvl-webtools
 docker build -t pvl-webtools:local .
 
 # Run locally built image
-docker run -p 8000:8000 pvl-webtools:local
+docker run -p 8000:8000 -e SEARXNG_URL="http://your-searxng:8888" pvl-webtools:local
 ```
 
 ## Multi-Architecture Support
@@ -159,10 +159,7 @@ docker inspect --format='{{.State.Health.Status}}' pvl-webtools
 Ensure `SEARXNG_URL` is set and the SearXNG instance is reachable from the container:
 
 ```bash
-docker exec pvl-webtools python -c "
-from pvlwebtools.mcp_server import check_status
-print(check_status())
-"
+docker exec pvl-webtools python -c "from pvlwebtools.mcp_server import check_status; print(check_status())"
 ```
 
 ### Connection refused

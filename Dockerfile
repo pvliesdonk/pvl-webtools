@@ -7,7 +7,7 @@
 FROM python:3.12-slim AS builder
 
 # Install uv for fast dependency resolution
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
 
 WORKDIR /app
 
@@ -26,15 +26,12 @@ FROM python:3.12-slim AS runtime
 
 # Security: Run as non-root user
 RUN groupadd --gid 1000 appgroup && \
-    useradd --uid 1000 --gid 1000 --shell /bin/bash appuser
+    useradd --uid 1000 --gid 1000 --shell /sbin/nologin appuser
 
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy virtual environment from builder (includes installed package)
 COPY --from=builder /app/.venv /app/.venv
-
-# Copy application source
-COPY src/ src/
 
 # Set environment variables
 ENV PATH="/app/.venv/bin:$PATH"
@@ -53,7 +50,7 @@ EXPOSE 8000
 
 # Health check - verify the MCP endpoint is responding
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; r = httpx.get('http://localhost:${MCP_PORT}/mcp', timeout=5); exit(0 if r.status_code in [200, 405] else 1)" || exit 1
+    CMD python -c "import httpx; r = httpx.get('http://localhost:${MCP_PORT}/mcp', timeout=5); exit(0 if r.status_code in [200, 405] else 1)"
 
 # Run MCP server with streamable HTTP transport
-CMD ["python", "-c", "from pvlwebtools.mcp_server import mcp; import os; mcp.run(transport='http', host=os.environ.get('MCP_HOST', '0.0.0.0'), port=int(os.environ.get('MCP_PORT', '8000')))"]
+CMD ["python", "-c", "from pvlwebtools.mcp_server import mcp; import os; mcp.run(transport='http', host=os.environ['MCP_HOST'], port=int(os.environ['MCP_PORT']))"]
