@@ -9,6 +9,12 @@ on:
         description: 'Image tag (e.g., v0.2.0 or latest)'
         required: true
         default: 'latest'
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Image tag from release-please'
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
