@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2](https://github.com/pvliesdonk/pvl-webtools/compare/v0.1.1...v0.1.2) (2026-01-03)
+
+
+### Bug Fixes
+
+* Add attestations permission to release-please workflow ([#10](https://github.com/pvliesdonk/pvl-webtools/issues/10)) ([ea067df](https://github.com/pvliesdonk/pvl-webtools/commit/ea067dfef87c360c6b02ab29ff5c63655e5367a5))
+* Add missing permissions for Docker attestation ([#9](https://github.com/pvliesdonk/pvl-webtools/issues/9)) ([72c8eed](https://github.com/pvliesdonk/pvl-webtools/commit/72c8eed79bdcd19161ba48553045937eb5e41db8))
+* Chain release workflows and fix Dockerfile ([#7](https://github.com/pvliesdonk/pvl-webtools/issues/7)) ([3ea71d1](https://github.com/pvliesdonk/pvl-webtools/commit/3ea71d12fb5a4548a39a42f46404d0ec40860c96))
+
 ## [0.1.1](https://github.com/pvliesdonk/pvl-webtools/compare/v0.1.0...v0.1.1) (2026-01-03)
 
 
