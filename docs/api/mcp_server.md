@@ -88,4 +88,6 @@ Add to your Claude Desktop configuration (`~/.config/claude/mcp.json`):
     options:
       members:
         - run_server
-        - mcp
+        - search
+        - fetch
+        - check_status
