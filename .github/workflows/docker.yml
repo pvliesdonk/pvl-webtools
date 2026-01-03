@@ -26,6 +26,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout repository
@@ -84,6 +86,7 @@ jobs:
             org.opencontainers.image.vendor=pvliesdonk
 
       - name: Build and push Docker image
+        id: build-push
         uses: docker/build-push-action@v6
         with:
           context: .
