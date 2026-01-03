@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import io
 import logging
 import re
 import time
@@ -80,6 +81,9 @@ async def _fetch_url(url: str, timeout: float = REQUEST_TIMEOUT) -> str:
         return response.text
 
 
+MAX_MARKDOWN_LENGTH = 100_000  # 100k chars max for markdown output
+
+
 def _extract_markdown(html_content: str) -> str | None:
     """
     Convert HTML to LLM-friendly markdown.
@@ -87,17 +91,19 @@ def _extract_markdown(html_content: str) -> str | None:
     Uses markitdown if available. Returns None if not available or fails.
     """
     try:
-        import io
-
         from markitdown import MarkItDown, StreamInfo
 
         md = MarkItDown()
         stream_info = StreamInfo(mimetype="text/html", extension=".html")
-        data = io.BytesIO(html_content.encode("utf-8"))
+        data = io.BytesIO(html_content.encode("utf-8", errors="replace"))
         result = md.convert_stream(data, stream_info=stream_info)
 
-        if result.markdown:
-            return result.markdown
+        if result.markdown is not None:
+            text = result.markdown
+            # Truncate if too long
+            if len(text) > MAX_MARKDOWN_LENGTH:
+                text = text[:MAX_MARKDOWN_LENGTH] + "\n\n[Content truncated...]"
+            return text
 
     except ImportError:
         logger.debug("markitdown not available")
@@ -237,7 +243,7 @@ async def web_fetch(
             content = _extract_metadata(html_content)
         elif extract_mode == "markdown":
             result = _extract_markdown(html_content)
-            if result:
+            if result is not None:
                 content = result
             else:
                 # Fallback to article extraction
