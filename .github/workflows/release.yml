@@ -34,6 +34,14 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref_name }}
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tool
+        run: pip install build
+
       - name: Semantic Version Release
         id: release
         uses: python-semantic-release/python-semantic-release@v10.5.3
