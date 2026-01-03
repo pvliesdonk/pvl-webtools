@@ -1,7 +1,31 @@
-"""
-MCP server for pvl-webtools.
+"""MCP server for pvl-webtools.
 
-Exposes web_search and web_fetch as tools via FastMCP 2.
+This module provides an MCP (Model Context Protocol) server that exposes
+web search and fetch capabilities to AI assistants and other MCP clients.
+
+The server provides three tools:
+
+- **search**: Search the web via SearXNG metasearch engine
+- **fetch**: Fetch and extract content from URLs
+- **check_status**: Check availability of configured services
+
+Running the Server:
+    Via command line::
+
+        uvx pvl-webtools-mcp
+
+    Or programmatically::
+
+        from pvlwebtools.mcp_server import run_server
+        run_server(transport="stdio")
+
+Configuration:
+    Set the ``SEARXNG_URL`` environment variable for web search::
+
+        export SEARXNG_URL="http://localhost:8888"
+
+Note:
+    Requires the ``mcp`` extra: ``pip install pvl-webtools[mcp]``
 """
 
 from __future__ import annotations
@@ -13,6 +37,14 @@ from fastmcp import FastMCP
 
 from pvlwebtools.web_fetch import FetchResult, WebFetchError, web_fetch
 from pvlwebtools.web_search import SearchResult, SearXNGClient, WebSearchError
+
+__all__ = [
+    "mcp",
+    "run_server",
+    "search",
+    "fetch",
+    "check_status",
+]
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -31,7 +63,11 @@ _searxng_client: SearXNGClient | None = None
 
 
 def get_searxng_client() -> SearXNGClient:
-    """Get or create the SearXNG client."""
+    """Get or create the singleton SearXNG client.
+
+    Returns:
+        The shared :class:`~pvlwebtools.web_search.SearXNGClient` instance.
+    """
     global _searxng_client
     if _searxng_client is None:
         _searxng_client = SearXNGClient()
@@ -164,10 +200,26 @@ def run_server(
 ) -> None:
     """Run the MCP server.
 
+    Starts the MCP server with the specified transport. For integration
+    with AI assistants like Claude, use ``stdio`` transport. For HTTP
+    clients, use ``http`` transport.
+
     Args:
-        transport: Transport protocol ('stdio' or 'http').
-        host: Host to bind to (for http transport).
-        port: Port to bind to (for http transport).
+        transport: Transport protocol:
+
+            - ``'stdio'``: Standard I/O (default, for Claude integration)
+            - ``'http'``: HTTP server (for web clients)
+
+        host: Host to bind to for HTTP transport. Default ``'127.0.0.1'``.
+        port: Port to bind to for HTTP transport. Default ``8000``.
+
+    Example:
+        >>> from pvlwebtools.mcp_server import run_server
+        >>> run_server()  # Runs with stdio transport
+
+        Or with HTTP::
+
+        >>> run_server(transport="http", host="0.0.0.0", port=8080)
     """
     if transport == "http":
         mcp.run(transport="http", host=host, port=port)

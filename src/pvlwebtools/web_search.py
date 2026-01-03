@@ -1,9 +1,27 @@
-"""
-Web search via SearXNG metasearch engine.
+"""Web search via SearXNG metasearch engine.
+
+This module provides async functions for performing web searches through
+a SearXNG metasearch instance. SearXNG aggregates results from multiple
+search engines while preserving user privacy.
+
+Example:
+    >>> import asyncio
+    >>> from pvlwebtools import web_search
+    >>>
+    >>> async def main():
+    ...     results = await web_search("python async", max_results=5)
+    ...     for r in results:
+    ...         print(f"{r.title}: {r.url}")
+    ...
+    >>> asyncio.run(main())
 
 Configuration:
-- SEARXNG_URL environment variable: Base URL for SearXNG instance
-  (e.g., http://localhost:8888)
+    Set the ``SEARXNG_URL`` environment variable to your SearXNG instance::
+
+        export SEARXNG_URL="http://localhost:8888"
+
+    Alternatively, pass the URL directly to :class:`SearXNGClient` or
+    the :func:`web_search` function.
 """
 
 from __future__ import annotations
@@ -16,10 +34,19 @@ from typing import Literal
 
 import httpx
 
+__all__ = [
+    "web_search",
+    "SearchResult",
+    "SearXNGClient",
+    "WebSearchError",
+    "RecencyType",
+]
+
 logger = logging.getLogger(__name__)
 
-# Valid recency values
 RecencyType = Literal["all_time", "day", "week", "month", "year"]
+"""Type alias for valid recency filter options."""
+
 VALID_RECENCY_VALUES: set[str] = {"all_time", "day", "week", "month", "year"}
 
 # Domain filter validation pattern
@@ -33,7 +60,23 @@ DEFAULT_TIMEOUT = 10.0  # seconds
 
 @dataclass
 class SearchResult:
-    """A single search result."""
+    """A single search result from a web search query.
+
+    Attributes:
+        title: The title of the search result page.
+        url: The URL of the search result.
+        snippet: A text snippet or excerpt from the page content.
+        published_date: Publication date if available (format varies).
+
+    Example:
+        >>> result = SearchResult(
+        ...     title="Python Tutorial",
+        ...     url="https://python.org/tutorial",
+        ...     snippet="Learn Python programming...",
+        ... )
+        >>> print(f"{result.title}: {result.url}")
+        Python Tutorial: https://python.org/tutorial
+    """
 
     title: str
     url: str
@@ -42,18 +85,48 @@ class SearchResult:
 
 
 class WebSearchError(Exception):
-    """Error during web search."""
+    """Exception raised when web search fails.
+
+    This exception is raised for various failure conditions including:
+
+    - SearXNG not configured (missing ``SEARXNG_URL``)
+    - Empty search query
+    - Invalid domain filter format
+    - HTTP errors from SearXNG
+    - Network timeouts or connection failures
+
+    Example:
+        >>> try:
+        ...     results = await web_search("")
+        ... except WebSearchError as e:
+        ...     print(f"Search failed: {e}")
+    """
 
     pass
 
 
 class SearXNGClient:
-    """
-    Client for SearXNG metasearch engine.
+    """Client for SearXNG metasearch engine.
+
+    Provides methods for searching the web through a SearXNG instance.
+    SearXNG is a privacy-respecting metasearch engine that aggregates
+    results from multiple search engines.
 
     Args:
-        url: SearXNG instance URL. Defaults to SEARXNG_URL env var.
-        timeout: Request timeout in seconds. Defaults to 10.
+        url: SearXNG instance URL. If not provided, reads from
+            ``SEARXNG_URL`` environment variable.
+        timeout: Request timeout in seconds. Default 10.0.
+
+    Attributes:
+        url: The configured SearXNG instance URL.
+        timeout: Request timeout in seconds.
+
+    Example:
+        >>> client = SearXNGClient(url="http://localhost:8888")
+        >>> if client.check_health():
+        ...     results = await client.search("python tutorial")
+        ...     for r in results:
+        ...         print(r.title)
     """
 
     def __init__(
@@ -68,15 +141,21 @@ class SearXNGClient:
 
     @property
     def is_configured(self) -> bool:
-        """Check if SearXNG URL is configured."""
+        """Check if SearXNG URL is configured.
+
+        Returns:
+            ``True`` if a URL is set, ``False`` otherwise.
+        """
         return bool(self.url)
 
     def check_health(self) -> bool:
-        """
-        Check if SearXNG is reachable.
+        """Check if SearXNG instance is reachable and healthy.
+
+        Makes a request to the ``/healthz`` endpoint. Results are
+        cached after the first check.
 
         Returns:
-            True if healthy, False otherwise.
+            ``True`` if healthy, ``False`` otherwise.
         """
         if not self.url:
             return False
@@ -102,20 +181,36 @@ class SearXNGClient:
         domain_filter: str | None = None,
         recency: RecencyType = "all_time",
     ) -> list[SearchResult]:
-        """
-        Perform a web search.
+        """Perform a web search via SearXNG.
 
         Args:
-            query: Search query string.
-            max_results: Maximum results to return (1-20).
-            domain_filter: Limit to specific domain (e.g., 'wikipedia.org').
-            recency: Time filter - 'all_time', 'day', 'week', 'month', 'year'.
+            query: Search query string. Cannot be empty.
+            max_results: Maximum number of results to return (1-20).
+                Default 5.
+            domain_filter: Limit search to a specific domain.
+                Examples: ``'wikipedia.org'``, ``'github.com'``, ``'gov'``.
+                Must be a valid domain format.
+            recency: Time filter for results:
+
+                - ``'all_time'``: No time restriction (default)
+                - ``'day'``: Last 24 hours
+                - ``'week'``: Last 7 days
+                - ``'month'``: Last 30 days
+                - ``'year'``: Last 365 days
 
         Returns:
-            List of SearchResult objects.
+            List of :class:`SearchResult` objects, up to ``max_results``.
 
         Raises:
-            WebSearchError: If search fails or SearXNG is not available.
+            WebSearchError: If SearXNG is not configured, query is empty,
+                domain filter is invalid, or the request fails.
+
+        Example:
+            >>> results = await client.search(
+            ...     "climate change",
+            ...     domain_filter="nature.com",
+            ...     recency="year",
+            ... )
         """
         if not self.url:
             raise WebSearchError("SearXNG URL not configured (set SEARXNG_URL env var)")
@@ -181,7 +276,6 @@ class SearXNGClient:
         return results
 
 
-# Convenience function for simple usage
 async def web_search(
     query: str,
     max_results: int = 5,
@@ -189,20 +283,43 @@ async def web_search(
     recency: RecencyType = "all_time",
     searxng_url: str | None = None,
 ) -> list[SearchResult]:
-    """
-    Search the web using SearXNG.
+    """Search the web using SearXNG.
 
-    This is a convenience wrapper around SearXNGClient.
+    This is a convenience function that creates a :class:`SearXNGClient`
+    and performs a single search. For multiple searches, create a client
+    instance directly to avoid repeated initialization.
 
     Args:
-        query: Search query string.
-        max_results: Maximum results to return (1-20).
-        domain_filter: Limit to specific domain (e.g., 'wikipedia.org').
-        recency: Time filter - 'all_time', 'day', 'week', 'month', 'year'.
-        searxng_url: SearXNG URL. Defaults to SEARXNG_URL env var.
+        query: Search query string. Cannot be empty.
+        max_results: Maximum number of results to return (1-20).
+            Default 5.
+        domain_filter: Limit search to a specific domain.
+            Examples: ``'wikipedia.org'``, ``'github.com'``.
+        recency: Time filter for results. One of:
+            ``'all_time'`` (default), ``'day'``, ``'week'``,
+            ``'month'``, ``'year'``.
+        searxng_url: SearXNG instance URL. If not provided,
+            reads from ``SEARXNG_URL`` environment variable.
 
     Returns:
-        List of SearchResult objects.
+        List of :class:`SearchResult` objects.
+
+    Raises:
+        WebSearchError: If search fails.
+
+    Example:
+        >>> import asyncio
+        >>> from pvlwebtools import web_search
+        >>>
+        >>> async def main():
+        ...     results = await web_search(
+        ...         "python async best practices",
+        ...         max_results=5,
+        ...     )
+        ...     for r in results:
+        ...         print(f"{r.title}: {r.url}")
+        ...
+        >>> asyncio.run(main())
     """
     client = SearXNGClient(url=searxng_url)
     return await client.search(
