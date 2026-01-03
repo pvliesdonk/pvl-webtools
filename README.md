@@ -63,6 +63,19 @@ export SEARXNG_URL="http://localhost:8888"
 uvx pvl-webtools-mcp
 ```
 
+### Docker (Streamable HTTP)
+
+```bash
+# Pull and run
+docker run -d -p 8000:8000 \
+  -e SEARXNG_URL="http://your-searxng:8888" \
+  ghcr.io/pvliesdonk/pvl-webtools:latest
+
+# MCP endpoint available at http://localhost:8000/mcp
+```
+
+See [Docker Deployment](https://pvliesdonk.github.io/pvl-webtools/docker/) for full documentation.
+
 ## Configuration
 
 | Environment Variable | Description |
