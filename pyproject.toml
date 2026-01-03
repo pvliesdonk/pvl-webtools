@@ -1,6 +1,6 @@
 [project]
 name = "pvl-webtools"
-version = "0.1.0"
+version = "0.1.0" # x-release-please-version
 description = "Web search (SearXNG) and fetch tools with MCP server"
 readme = "README.md"
 license = {text = "MIT"}
