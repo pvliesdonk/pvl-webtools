@@ -10,7 +10,10 @@ pip install pvl-webtools
 # With MCP server support
 pip install pvl-webtools[mcp]
 
-# With trafilatura for better extraction
+# With markitdown for LLM-friendly markdown output (recommended)
+pip install pvl-webtools[markdown]
+
+# With trafilatura for article text extraction
 pip install pvl-webtools[extraction]
 
 # Everything
@@ -80,7 +83,11 @@ Search the web via SearXNG metasearch engine.
 Fetch and extract content from URLs.
 
 - `url`: URL to fetch
-- `extract_mode`: "article" (default), "raw", "metadata"
+- `extract_mode`:
+  - `"markdown"` (default): LLM-friendly markdown via markitdown
+  - `"article"`: Plain text via trafilatura
+  - `"raw"`: Raw HTML (truncated)
+  - `"metadata"`: Title, description, Open Graph tags
 
 ## License
 
