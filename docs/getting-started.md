@@ -117,8 +117,8 @@ uvx pvl-webtools-mcp
 
 Enable verbose logging (emitted on stderr so stdio transport stays valid) by setting
 `VERBOSE=1` or specifying an explicit level such as
-`LOG_LEVEL=DEBUG` before launching the server. Legacy `PVL_MCP_*` names
-are still accepted.
+`LOG_LEVEL=DEBUG` before launching the server. Use `LOG_LEVEL=TRACE` if you also
+need dependency logs from FastMCP internals.
 
 ### Available Tools
 
