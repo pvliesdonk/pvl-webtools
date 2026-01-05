@@ -84,10 +84,8 @@ See [Docker Deployment](https://pvliesdonk.github.io/pvl-webtools/docker/) for f
 | Environment Variable | Description |
 |---------------------|-------------|
 | `SEARXNG_URL` | SearXNG instance URL (required for web_search) |
-| `LOG_LEVEL` | Optional logging level for the MCP server (`DEBUG`, `INFO`, etc.). Logs are emitted on stderr so stdio transport stays valid. |
-| `VERBOSE` | Convenience flag; set to `1`/`true` to enable debug logging without specifying a level. |
-
-Legacy aliases `PVL_MCP_LOG_LEVEL` and `PVL_MCP_VERBOSE` are still accepted for backward compatibility.
+| `LOG_LEVEL` | Optional logging level for the MCP server (`DEBUG`, `INFO`, `TRACE`, etc.). `TRACE` removes dependency filtering so every log (including FastMCP internals) is emitted. |
+| `VERBOSE` | Convenience flag; set to `1`/`true` for debug logging without exposing dependency noise. |
 
 ## Tools
 

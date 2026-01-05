@@ -50,20 +50,15 @@ __all__ = [
 
 LOG_LEVEL_ENV = "LOG_LEVEL"
 VERBOSE_ENV = "VERBOSE"
-LEGACY_LOG_LEVEL_ENV = "PVL_MCP_LOG_LEVEL"
-LEGACY_VERBOSE_ENV = "PVL_MCP_VERBOSE"
+TRACE_LEVEL = 5
 
+logging.addLevelName(TRACE_LEVEL, "TRACE")
 
-def _get_env(name: str, legacy_name: str) -> tuple[str | None, str | None]:
-    """Return env value and which variable provided it (prefers new names)."""
-
-    value = os.environ.get(name)
-    if value is not None:
-        return value, name
-    legacy_value = os.environ.get(legacy_name)
-    if legacy_value is not None:
-        return legacy_value, legacy_name
-    return None, None
+NOISY_DEPENDENCY_LOGGERS = (
+    "docket",
+    "docket.worker",
+    "fakeredis",
+)
 
 
 def _is_truthy(value: str) -> bool:
@@ -78,20 +73,25 @@ def _configure_logging() -> int | None:
     Returns the configured log level when logging is enabled, otherwise ``None``.
     """
 
-    level_name, level_source = _get_env(LOG_LEVEL_ENV, LEGACY_LOG_LEVEL_ENV)
-    verbose_flag, verbose_source = _get_env(VERBOSE_ENV, LEGACY_VERBOSE_ENV)
+    level_name = os.environ.get(LOG_LEVEL_ENV)
+    verbose_flag = os.environ.get(VERBOSE_ENV)
+    include_dependency_logs = False
 
     level: int | None = None
 
     if level_name:
         candidate = level_name.strip().upper()
-        level = getattr(logging, candidate, None)
-        if level is None:
-            print(
-                f"pvl-webtools MCP: unknown log level '{level_name}', defaulting to INFO",
-                file=sys.stderr,
-            )
-            level = logging.INFO
+        if candidate == "TRACE":
+            level = TRACE_LEVEL
+            include_dependency_logs = True
+        else:
+            level = getattr(logging, candidate, None)
+            if level is None:
+                print(
+                    f"pvl-webtools MCP: unknown log level '{level_name}', defaulting to INFO",
+                    file=sys.stderr,
+                )
+                level = logging.INFO
     elif verbose_flag and _is_truthy(verbose_flag):
         level = logging.DEBUG
 
@@ -104,16 +104,10 @@ def _configure_logging() -> int | None:
         stream=sys.stderr,
     )
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    if level_source and level_source != LOG_LEVEL_ENV:
-        print(
-            f"pvl-webtools MCP: {level_source} is deprecated; use {LOG_LEVEL_ENV} instead",
-            file=sys.stderr,
-        )
-    if verbose_source and verbose_source != VERBOSE_ENV:
-        print(
-            f"pvl-webtools MCP: {verbose_source} is deprecated; use {VERBOSE_ENV} instead",
-            file=sys.stderr,
-        )
+
+    if not include_dependency_logs:
+        for noise_logger in NOISY_DEPENDENCY_LOGGERS:
+            logging.getLogger(noise_logger).setLevel(logging.INFO)
 
     return level
 

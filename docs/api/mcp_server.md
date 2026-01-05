@@ -20,10 +20,10 @@ uvx pvl-webtools-mcp
 
 ### Verbose Logging
 
-Set `LOG_LEVEL` (e.g., `DEBUG`, `INFO`) or the convenience flag
+Set `LOG_LEVEL` (e.g., `DEBUG`, `INFO`, `TRACE`) or the convenience flag
 `VERBOSE=1` to emit detailed MCP server logs to stderr without
-interfering with stdio transport. The legacy `PVL_MCP_*` variables are
-still read for backwards compatibility.
+interfering with stdio transport. `TRACE` removes dependency filtering
+so every FastMCP/Docket message continues to appear.
 
 ### Programmatic
 

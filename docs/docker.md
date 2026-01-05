@@ -36,8 +36,8 @@ The MCP server is now available at `http://localhost:8000/mcp`.
 | `SEARXNG_URL` | *(none)* | SearXNG instance URL for web search |
 | `MCP_HOST` | `0.0.0.0` | Host to bind the server to |
 | `MCP_PORT` | `8000` | Port to listen on |
-| `LOG_LEVEL` | *(none)* | Optional logging level for the MCP server (`DEBUG`, `INFO`, etc.). Logs go to stderr. |
-| `VERBOSE` | *(none)* | Convenience flag; set to `1`/`true` for debug logging. |
+| `LOG_LEVEL` | *(none)* | Optional logging level for the MCP server (`DEBUG`, `INFO`, `TRACE`, etc.). `TRACE` disables dependency log filtering. |
+| `VERBOSE` | *(none)* | Convenience flag; set to `1`/`true` for debug logging without dependency noise. |
 
 ### Example: Custom Port
 
@@ -50,8 +50,6 @@ docker run -d \
   ghcr.io/pvliesdonk/pvl-webtools:latest
 ```
 
-Legacy environment variables `PVL_MCP_LOG_LEVEL` and `PVL_MCP_VERBOSE` are still
-recognized by the container but will be removed in a future release.
 
 ## Docker Compose
 
