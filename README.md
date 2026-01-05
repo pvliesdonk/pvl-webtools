@@ -59,6 +59,9 @@ if client.check_health():
 # Set SearXNG URL
 export SEARXNG_URL="http://localhost:8888"
 
+# Optional: enable verbose logging (sent to stderr)
+export VERBOSE=1
+
 # Run server
 uvx pvl-webtools-mcp
 ```
@@ -81,6 +84,10 @@ See [Docker Deployment](https://pvliesdonk.github.io/pvl-webtools/docker/) for f
 | Environment Variable | Description |
 |---------------------|-------------|
 | `SEARXNG_URL` | SearXNG instance URL (required for web_search) |
+| `LOG_LEVEL` | Optional logging level for the MCP server (`DEBUG`, `INFO`, etc.). Logs are emitted on stderr so stdio transport stays valid. |
+| `VERBOSE` | Convenience flag; set to `1`/`true` to enable debug logging without specifying a level. |
+
+Legacy aliases `PVL_MCP_LOG_LEVEL` and `PVL_MCP_VERBOSE` are still accepted for backward compatibility.
 
 ## Tools
 
