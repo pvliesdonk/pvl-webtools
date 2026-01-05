@@ -57,6 +57,14 @@ logger = logging.getLogger(__name__)
 _last_request_time: float = 0.0
 _rate_limit_lock = asyncio.Lock()
 
+
+def _truncate(value: str, limit: int = 120) -> str:
+    """Truncate long strings for logging output."""
+
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}..."
+
 ExtractMode = Literal["markdown", "article", "raw", "metadata"]
 """Type alias for extraction mode options."""
 
@@ -167,7 +175,9 @@ async def _enforce_rate_limit(min_interval: float) -> None:
         elapsed = now - _last_request_time
 
         if elapsed < min_interval:
-            await asyncio.sleep(min_interval - elapsed)
+            wait_time = min_interval - elapsed
+            logger.debug("Rate limiting: sleeping for %.2fs", wait_time)
+            await asyncio.sleep(wait_time)
 
         _last_request_time = time.time()
 
@@ -186,6 +196,9 @@ async def _fetch_url(url: str, config: FetchConfig) -> str:
         WebFetchError: If content exceeds max_content_length.
         httpx.HTTPError: For HTTP-level errors.
     """
+    logger.debug("Fetching URL %s", _truncate(url))
+    start_time = time.perf_counter()
+
     async with httpx.AsyncClient(
         timeout=config.request_timeout,
         follow_redirects=True,
@@ -198,6 +211,15 @@ async def _fetch_url(url: str, config: FetchConfig) -> str:
         content_length = response.headers.get("content-length")
         if content_length and int(content_length) > config.max_content_length:
             raise WebFetchError(f"Content too large: {content_length} bytes")
+
+        duration = time.perf_counter() - start_time
+        logger.debug(
+            "Fetched %s in %.2fs (status=%s, content_length=%s)",
+            _truncate(url),
+            duration,
+            response.status_code,
+            content_length or "unknown",
+        )
 
         return response.text
 
@@ -428,6 +450,13 @@ async def web_fetch(
     if not url.startswith(("http://", "https://")):
         raise WebFetchError("URL must start with http:// or https://")
 
+    logger.debug(
+        "web_fetch start url=%s mode=%s rate_limit=%s",
+        _truncate(url),
+        extract_mode,
+        rate_limit,
+    )
+
     if rate_limit:
         await _enforce_rate_limit(config.min_request_interval)
 
@@ -445,19 +474,31 @@ async def web_fetch(
                 content = result
             else:
                 # Fallback to article extraction
+                logger.debug("markitdown unavailable; falling back to article extraction")
                 content = _extract_article(html_content, config.max_article_length)
                 actual_mode = "article"
         else:  # article
             content = _extract_article(html_content, config.max_article_length)
 
-        return FetchResult(
+        fetch_result = FetchResult(
             url=url,
             content=content,
             content_length=len(content),
             extract_mode=actual_mode,
         )
 
+        logger.debug(
+            "web_fetch success url=%s mode=%s length=%s",
+            _truncate(url),
+            fetch_result.extract_mode,
+            fetch_result.content_length,
+        )
+
+        return fetch_result
+
     except httpx.HTTPError as e:
+        logger.warning("HTTP error fetching %s: %s", _truncate(url), e)
         raise WebFetchError(f"HTTP error: {e}") from e
     except Exception as e:
+        logger.warning("Fetch failed for %s: %s", _truncate(url), e)
         raise WebFetchError(f"Fetch failed: {e}") from e
