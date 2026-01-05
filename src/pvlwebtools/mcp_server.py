@@ -30,7 +30,9 @@ Note:
 
 from __future__ import annotations
 
-import asyncio
+import logging
+import os
+import sys
 from typing import Literal
 
 from fastmcp import FastMCP
@@ -45,6 +47,86 @@ __all__ = [
     "fetch",
     "check_status",
 ]
+
+LOG_LEVEL_ENV = "LOG_LEVEL"
+VERBOSE_ENV = "VERBOSE"
+LEGACY_LOG_LEVEL_ENV = "PVL_MCP_LOG_LEVEL"
+LEGACY_VERBOSE_ENV = "PVL_MCP_VERBOSE"
+
+
+def _get_env(name: str, legacy_name: str) -> tuple[str | None, str | None]:
+    """Return env value and which variable provided it (prefers new names)."""
+
+    value = os.environ.get(name)
+    if value is not None:
+        return value, name
+    legacy_value = os.environ.get(legacy_name)
+    if legacy_value is not None:
+        return legacy_value, legacy_name
+    return None, None
+
+
+def _is_truthy(value: str) -> bool:
+    """Return True if the string value represents a truthy flag."""
+
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _configure_logging() -> int | None:
+    """Configure logging when verbose env vars are set.
+
+    Returns the configured log level when logging is enabled, otherwise ``None``.
+    """
+
+    level_name, level_source = _get_env(LOG_LEVEL_ENV, LEGACY_LOG_LEVEL_ENV)
+    verbose_flag, verbose_source = _get_env(VERBOSE_ENV, LEGACY_VERBOSE_ENV)
+
+    level: int | None = None
+
+    if level_name:
+        candidate = level_name.strip().upper()
+        level = getattr(logging, candidate, None)
+        if level is None:
+            print(
+                f"pvl-webtools MCP: unknown log level '{level_name}', defaulting to INFO",
+                file=sys.stderr,
+            )
+            level = logging.INFO
+    elif verbose_flag and _is_truthy(verbose_flag):
+        level = logging.DEBUG
+
+    if level is None:
+        return None
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    if level_source and level_source != LOG_LEVEL_ENV:
+        print(
+            f"pvl-webtools MCP: {level_source} is deprecated; use {LOG_LEVEL_ENV} instead",
+            file=sys.stderr,
+        )
+    if verbose_source and verbose_source != VERBOSE_ENV:
+        print(
+            f"pvl-webtools MCP: {verbose_source} is deprecated; use {VERBOSE_ENV} instead",
+            file=sys.stderr,
+        )
+
+    return level
+
+
+_configured_log_level = _configure_logging()
+
+logger = logging.getLogger(__name__)
+
+if _configured_log_level is not None:
+    logger.info(
+        "MCP verbose logging enabled (level=%s)",
+        logging.getLevelName(_configured_log_level),
+    )
 
 # Initialize FastMCP server
 mcp = FastMCP(
@@ -62,6 +144,14 @@ mcp = FastMCP(
 _searxng_client: SearXNGClient | None = None
 
 
+def _truncate(value: str, limit: int = 200) -> str:
+    """Truncate long strings for logging output."""
+
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}..."
+
+
 def get_searxng_client() -> SearXNGClient:
     """Get or create the singleton SearXNG client.
 
@@ -75,7 +165,7 @@ def get_searxng_client() -> SearXNGClient:
 
 
 @mcp.tool
-def search(
+async def search(
     query: str,
     max_results: int = 5,
     domain_filter: str | None = None,
@@ -105,18 +195,23 @@ def search(
 
     client = get_searxng_client()
 
+    logger.debug(
+        "search(query=%r, max_results=%s, domain_filter=%s, recency=%s)",
+        _truncate(query),
+        max_results,
+        domain_filter,
+        recency,
+    )
+
     if not client.is_configured:
         return [{"error": "SearXNG not configured. Set SEARXNG_URL environment variable."}]
 
     try:
-        # Run async search in sync context
-        results: list[SearchResult] = asyncio.get_event_loop().run_until_complete(
-            client.search(
-                query=query,
-                max_results=max_results,
-                domain_filter=domain_filter,
-                recency=recency,
-            )
+        results: list[SearchResult] = await client.search(
+            query=query,
+            max_results=max_results,
+            domain_filter=domain_filter,
+            recency=recency,
         )
 
         return [
@@ -130,11 +225,12 @@ def search(
         ]
 
     except WebSearchError as e:
+        logger.warning("Search failed: %s", e)
         return [{"error": str(e)}]
 
 
 @mcp.tool
-def fetch(
+async def fetch(
     url: str,
     extract_mode: Literal["markdown", "article", "raw", "metadata"] = "markdown",
 ) -> dict:
@@ -158,11 +254,10 @@ def fetch(
     Note:
         Rate-limited to 1 request per 3 seconds to avoid abuse.
     """
+    logger.debug("fetch(url=%s, extract_mode=%s)", url, extract_mode)
+
     try:
-        # Run async fetch in sync context
-        result: FetchResult = asyncio.get_event_loop().run_until_complete(
-            web_fetch(url=url, extract_mode=extract_mode)
-        )
+        result: FetchResult = await web_fetch(url=url, extract_mode=extract_mode)
 
         return {
             "url": result.url,
@@ -173,6 +268,7 @@ def fetch(
         }
 
     except WebFetchError as e:
+        logger.warning("Fetch failed for %s: %s", url, e)
         return {"error": str(e), "url": url}
 
 
@@ -184,6 +280,8 @@ def check_status() -> dict:
         Status information including SearXNG availability.
     """
     client = get_searxng_client()
+
+    logger.debug("check_status invoked")
 
     return {
         "searxng_configured": client.is_configured,

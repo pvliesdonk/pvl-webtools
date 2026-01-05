@@ -18,6 +18,13 @@ export SEARXNG_URL="http://localhost:8888"
 uvx pvl-webtools-mcp
 ```
 
+### Verbose Logging
+
+Set `LOG_LEVEL` (e.g., `DEBUG`, `INFO`) or the convenience flag
+`VERBOSE=1` to emit detailed MCP server logs to stderr without
+interfering with stdio transport. The legacy `PVL_MCP_*` variables are
+still read for backwards compatibility.
+
 ### Programmatic
 
 ```python

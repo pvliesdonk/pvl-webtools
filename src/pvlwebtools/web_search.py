@@ -29,6 +29,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -56,6 +57,14 @@ DOMAIN_FILTER_PATTERN = re.compile(
 
 # Default configuration
 DEFAULT_TIMEOUT = 10.0  # seconds
+
+
+def _truncate(value: str, limit: int = 120) -> str:
+    """Truncate long values for safe logging output."""
+
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}..."
 
 
 @dataclass
@@ -139,6 +148,12 @@ class SearXNGClient:
         self._health_checked = False
         self._is_healthy = False
 
+        logger.debug(
+            "Initialized SearXNGClient(url=%s, timeout=%s)",
+            self.url or "<not set>",
+            timeout,
+        )
+
     @property
     def is_configured(self) -> bool:
         """Check if SearXNG URL is configured.
@@ -172,6 +187,10 @@ class SearXNGClient:
             self._is_healthy = False
 
         self._health_checked = True
+        logger.debug(
+            "SearXNG health check completed (healthy=%s)",
+            self._is_healthy,
+        )
         return self._is_healthy
 
     async def search(
@@ -251,14 +270,26 @@ class SearXNGClient:
         if time_range:
             params["time_range"] = time_range
 
+        logger.debug(
+            "SearXNG search start query=%r domain=%s recency=%s max=%s",
+            _truncate(query, 80),
+            domain_filter,
+            recency,
+            max_results,
+        )
+
+        start_time = time.perf_counter()
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(f"{self.url}/search", params=params)
                 response.raise_for_status()
                 data = response.json()
         except httpx.HTTPError as e:
+            logger.warning("SearXNG HTTP error: %s", e)
             raise WebSearchError(f"HTTP error: {e}") from e
         except Exception as e:
+            logger.warning("SearXNG search failed: %s", e)
             raise WebSearchError(f"Search failed: {e}") from e
 
         # Extract results
@@ -272,6 +303,13 @@ class SearXNGClient:
                     published_date=item.get("publishedDate"),
                 )
             )
+
+        duration = time.perf_counter() - start_time
+        logger.debug(
+            "SearXNG search complete in %.2fs with %d results",
+            duration,
+            len(results),
+        )
 
         return results
 
@@ -321,6 +359,10 @@ async def web_search(
         ...
         >>> asyncio.run(main())
     """
+    logger.debug(
+        "web_search convenience wrapper invoked (url=%s)",
+        searxng_url or "<env>",
+    )
     client = SearXNGClient(url=searxng_url)
     return await client.search(
         query=query,
