@@ -65,6 +65,7 @@ def _truncate(value: str, limit: int = 120) -> str:
         return value
     return f"{value[:limit]}..."
 
+
 ExtractMode = Literal["markdown", "article", "raw", "metadata"]
 """Type alias for extraction mode options."""
 
